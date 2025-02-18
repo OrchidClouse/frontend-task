@@ -4,6 +4,10 @@ import axios from "axios";
 import parseJSON, { findThreeJSJSON } from "../utils/parse-json";
 import * as uuid from "uuid";
 import * as RX from "rxjs";
+import {
+  CSS2DRenderer,
+  CSS2DObject,
+} from "three/examples/jsm/renderers/CSS2DRenderer";
 
 CameraControls.install({ THREE });
 
@@ -19,6 +23,8 @@ class Viewer {
   private _renderNeeded = true;
   private _clock = new THREE.Clock();
 
+  private _labelRenderer: CSS2DRenderer;
+
   public model: THREE.Object3D | undefined;
 
   public status = new RX.BehaviorSubject<ViewerStatus>("idle");
@@ -26,7 +32,7 @@ class Viewer {
   constructor(container: HTMLDivElement) {
     this.id = uuid.v4();
 
-    // console.log("init viewer", this.id);
+    console.log("init viewer", this.id);
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color("#333333");
@@ -44,6 +50,12 @@ class Viewer {
     this._renderer.setPixelRatio(window.devicePixelRatio);
     this._renderer.shadowMap.enabled = true;
     this._renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    this._labelRenderer = new CSS2DRenderer();
+    this._labelRenderer.setSize(window.innerWidth, window.innerHeight);
+    this._labelRenderer.domElement.style.position = "absolute";
+    this._labelRenderer.domElement.style.top = "0px";
+    container.appendChild(this._labelRenderer.domElement);
 
     container.appendChild(this._renderer.domElement);
 
@@ -106,11 +118,44 @@ class Viewer {
 
     if (hasControlsUpdated || this._renderNeeded) {
       this._renderer.render(this.scene, this.camera);
+      this._labelRenderer.render(this.scene, this.camera);
+      this.optimizeLabels();
       this._renderNeeded = false;
     }
-
     window.requestAnimationFrame(this._render);
   };
+
+  private optimizeLabels = () => {
+    const labels = Array.from(
+      document.getElementsByClassName("label")
+    ) as HTMLElement[];
+    const visibleRects: DOMRect[] = [];
+
+    labels.forEach((label) => {
+      label.style.visibility = "visible";
+      const rect = label.getBoundingClientRect();
+
+      for (const otherRect of visibleRects) {
+        if (this.rectsOverlap(rect, otherRect)) {
+          label.style.visibility = "hidden";
+          break;
+        }
+      }
+
+      if (label.style.visibility === "visible") {
+        visibleRects.push(rect);
+      }
+    });
+  };
+
+  private rectsOverlap(rect1: DOMRect, rect2: DOMRect): boolean {
+    return !(
+      rect1.right < rect2.left ||
+      rect1.left > rect2.right ||
+      rect1.bottom < rect2.top ||
+      rect1.top > rect2.bottom
+    );
+  }
 
   private async loadModel() {
     this.status.next("loading");
@@ -151,23 +196,33 @@ class Viewer {
   private assignPropertyValues(object: THREE.Object3D) {
     object.traverse((child) => {
       if (child instanceof THREE.Mesh) {
-        // Define meaningful AEC installation progress values
-        const progressStatuses: any = {
+        const progressStatuses: Record<number, string> = {
           1: "Not Started",
           2: "In Progress",
           3: "Partially Installed",
           4: "Installed",
         };
 
-        // Assign installation status based on some criteria (e.g., object name, metadata, or just sequence)
-        const statusIndex: number = (child.id % 4) + 1; // Ensures a cyclic assignment (1 to 4)
+        const statusIndex: number = (child.id % 4) + 1;
         child.userData.propertyValue = {
           statusCode: statusIndex,
           statusText: progressStatuses[statusIndex],
         };
+
+        const div = document.createElement("div");
+        div.className = "label";
+        div.textContent = child.userData.propertyValue.statusText;
+        div.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
+        div.style.color = "#fff";
+        div.style.padding = "2px 4px";
+        div.style.borderRadius = "4px";
+        div.style.fontSize = "12px";
+
+        const label = new CSS2DObject(div);
+        label.position.set(0, 1, 0);
+        child.add(label);
       }
     });
-
     console.log("Updated Model with Installation Progress:", object);
   }
 
