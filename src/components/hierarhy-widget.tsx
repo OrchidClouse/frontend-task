@@ -23,6 +23,7 @@ const HierarchyNode: React.FC<HierarchyNodeProps> = ({
     marginBottom: "2px",
     borderRadius: "4px",
     background: isSelected ? "#cceeff" : "#f9f9f9",
+    color: "black",
   };
 
   return (
@@ -37,7 +38,14 @@ const HierarchyNode: React.FC<HierarchyNodeProps> = ({
         {object.name || object.type}
       </div>
       {expanded && object.children.length > 0 && (
-        <ul style={{ marginLeft: "12px", listStyleType: "none", padding: 0 }}>
+        <ul
+          style={{
+            marginLeft: "12px",
+            listStyleType: "none",
+            padding: 0,
+            color: "black",
+          }}
+        >
           {object.children.map((child) => (
             <HierarchyNode
               key={child.uuid}
@@ -84,7 +92,7 @@ const HierarchyWidget: React.FC = () => {
         zIndex: 10,
       }}
     >
-      <h4>Иерархия объектов</h4>
+      <h4 style={{ color: "black" }}>Иерархия объектов</h4>
       <ul style={{ listStyleType: "none", padding: 0 }}>
         <HierarchyNode
           object={viewer.model}
